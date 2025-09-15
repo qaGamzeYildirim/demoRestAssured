@@ -68,6 +68,21 @@
             <version>8.3.1</version>
         </dependency>
 
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.30</version> <!-- Güncel versiyon -->
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- JPA (örneğin Hibernate) -->
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+            <version>3.1.0</version>
+        </dependency>
+
 
     </dependencies>
 </project>

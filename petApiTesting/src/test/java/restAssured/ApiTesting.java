@@ -1,39 +1,31 @@
 package restAssured;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import enums.HttpStatusCode;
+import io.restassured.path.json.JsonPath;
+import io.restassured.response.Response;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import io.restassured.http.ContentType;
 
+import static constants.EndpointsConstants.*;
+import static constants.TestConstants.*;
+import static constants.UrlConstants.*;
 import static io.restassured.RestAssured.*;
 
 import java.io.*;
-import java.util.Scanner;
-
+import java.util.Map;
 
 
 public class ApiTesting {
 
 
     @Test
-    public void create() {
+    public void createTest() {
 
-        File file = new File("resources/createBody.json");
-
-        String id = given()
-                .baseUri("https://petstore.swagger.io/v2")
-                .basePath("/pet")
-                .contentType(ContentType.JSON)
-                .body(file).
-                when()
-                .post()
-                .then()
-                .statusCode(200)
-                .extract().path("id", "status", "name").toString();
-
-        System.out.println(id);
-        write(id, "resources/a.txt");
-
+        create();
 
     }
 
@@ -43,96 +35,123 @@ public class ApiTesting {
         File file = new File("resources/createBodyNegative.json");
 
         given()
-                .baseUri("https://petstore.swagger.io/v2")
-                .basePath("/pet")
-                .contentType(ContentType.JSON)
-                .body(file).
-                when()
-                .post()
-                .then()
-                .statusCode(405)
-                .contentType(ContentType.JSON)
-                .extract().response()
-                .print();
-
-    }
-
-
-    @Test
-    public void read() throws FileNotFoundException {
-
-        String petId = readA();
-        System.out.println(petId);
-        String response = given()
-                .baseUri("https://petstore.swagger.io/v2")
-                .contentType(ContentType.JSON)
-                .param("petId", petId)
-                .when()
-                .get("/pet/" + petId)
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .extract().response()
-                .print();
-
-
-    }
-
-    @Test
-    public void update() throws FileNotFoundException {
-        File file = new File("resources/update.json");
-
-        given()
-                .baseUri("https://petstore.swagger.io/v2")
-                .basePath("/pet")
+                .baseUri(PET_STORE_BASE_URL)
                 .contentType(ContentType.JSON)
                 .body(file)
                 .when()
-                .put()
+                .post(PET_ENDPOINT)
                 .then()
-                .statusCode(200);
+                .statusCode(HttpStatusCode.METHOD_NOT_ALLOWED.getCode())
+                .contentType(ContentType.JSON)
+                .extract().response()
+                .print();
 
+    }
+
+
+    @Test
+    public void read() {
+        String id = create();
+        readAndAssert(id);
+        deleteAndValidate(id);
+    }
+
+    @Test
+    public void update() throws IOException {
+        File file = new File("resources/update.json");
+
+        String id = create();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, Object> requestMap = objectMapper.readValue(file, Map.class);
+        requestMap.put(ID, id);
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, requestMap);
+
+        given()
+                .baseUri(PET_STORE_BASE_URL)
+                .contentType(ContentType.JSON)
+                .body(file)
+                .when()
+                .put(PET_ENDPOINT)
+                .then()
+                .statusCode(HttpStatusCode.OK.getCode());
+
+        JsonPath updatedJjsonPath = readBody(id);
+        Assert.assertEquals(updatedJjsonPath.get(NAME), "karabas");
+        deleteAndValidate(id);
     }
 
     @Test
     public void delete() throws FileNotFoundException {
-        String petId = readA();
-        System.out.println(petId);
-        given()
-                .baseUri("https://petstore.swagger.io/v2")
+        String id = create();
+        deleteAndValidate(id);
+
+    }
+
+    public String create() {
+
+        File file = new File("resources/createBody.json");
+
+        return given()
+                .baseUri(PET_STORE_BASE_URL)
                 .contentType(ContentType.JSON)
-                .param("petId", petId)
+                .body(file)
                 .when()
-                .delete("/pet/" + petId)
+                .post(PET_ENDPOINT)
                 .then()
-                .statusCode(200)
+                .statusCode(HttpStatusCode.OK.getCode())
+                .extract().body().path(ID).toString();
+
+    }
+
+    public void readAndAssert(String id) {
+        Response response = given()
+                .baseUri(PET_STORE_BASE_URL)
                 .contentType(ContentType.JSON)
-                .extract().response()
-                .print();
+                .param(PET_ID, id)
+                .when()
+                .get(PET_ENDPOINT_WITH_PRAM + id)
+                .then()
+                .statusCode(HttpStatusCode.OK.getCode())
+                .contentType(ContentType.JSON)
+                .extract().response();
+        Assert.assertEquals(response.path(ID).toString(), id);
+    }
+
+    public JsonPath readBody(String id) {
+        Response response = given()
+                .baseUri(PET_STORE_BASE_URL)
+                .contentType(ContentType.JSON)
+                .param(PET_ID, id)
+                .when()
+                .get(PET_ENDPOINT_WITH_PRAM + id)
+                .then()
+                .statusCode(HttpStatusCode.OK.getCode())
+                .contentType(ContentType.JSON)
+                .extract().response();
+        return new JsonPath(response.asPrettyString());
+    }
+
+    public void deleteAndValidate(String id) {
+        given()
+                .baseUri(PET_STORE_BASE_URL)
+                .contentType(ContentType.JSON)
+                .param(PET_ID, id)
+                .when()
+                .delete(PET_ENDPOINT_WITH_PRAM + id)
+                .then()
+                .statusCode(HttpStatusCode.OK.getCode());
+
+        given()
+                .baseUri(PET_STORE_BASE_URL)
+                .contentType(ContentType.JSON)
+                .param(PET_ID, id)
+                .when()
+                .get(PET_ENDPOINT_WITH_PRAM + id)
+                .then()
+                .statusCode(HttpStatusCode.METHOD_NOT_ALLOWED.getCode());
 
     }
 
-
-    private static void write(String txt, String filePath) {
-        try {
-            File file = new File(filePath);
-            FileWriter writer = new FileWriter(file);
-            BufferedWriter writer1 = new BufferedWriter(writer);
-            writer1.write(txt);
-            writer1.close();
-            System.out.println("success");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-
-    private static String readA() throws FileNotFoundException {
-        File f = new File("resources/a.txt");
-        Scanner file = new Scanner(f);
-
-        return file.nextLine();
-    }
 
 }
